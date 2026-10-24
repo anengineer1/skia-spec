@@ -1,0 +1,11 @@
+diff -uNr previous/gn/BUILDCONFIG.gn next/gn/BUILDCONFIG.gn
+--- previous/gn/BUILDCONFIG.gn	2026-10-02 23:14:59.480000000 +0200
++++ next/gn/BUILDCONFIG.gn	2026-10-02 23:18:15.606012308 +0200
+@@ -182,7 +182,6 @@
+ default_configs = [
+   "//gn/skia:default",
+   "//gn/skia:no_exceptions",
+-  "//gn/skia:no_rtti",
+   "//gn/skia:strict_aliasing",
+ ]
+ if (!is_debug) {
