@@ -3,7 +3,7 @@
 # Headers to exclude from installation
 %global REMOVE_HEADERS include/codec/SkRawDecoder.h include/codec/SkJpegxlDecoder.h include/codec/SkAvifDecocer.h
 
-Name:           skia
+Name:           libskia
 Version:        146
 Release:        1%{?dist}
 Summary:        2D graphics library
@@ -11,6 +11,8 @@ Summary:        2D graphics library
 License:        BSD-3-Clause
 URL:            https://skia.org
 Source0:        https://skia.googlesource.com/skia/+archive/refs/heads/chrome/m%{version}.tar.gz
+Provides:       skia = %{version}-%{release}
+Obsoletes:      skia < %{version}-%{release}
 Patch0:         enable-rtti.patch
 Patch1:         loong-build.patch
 Patch2:         unsupported-attributes.patch
@@ -19,8 +21,7 @@ Patch4:         include_installer.patch
 
 BuildRequires:  abseil-cpp
 BuildRequires:  brotli-devel
-BuildRequires:  gcc
-BuildRequires:  g++
+BuildRequires:  gcc-c++
 BuildRequires:  expat-devel
 BuildRequires:  fontconfig-devel
 BuildRequires:  freetype-devel
@@ -29,7 +30,6 @@ BuildRequires:  gn
 BuildRequires:  graphite2-devel
 BuildRequires:  harfbuzz-devel
 BuildRequires:  highway-devel
-BuildRequires:  icu
 BuildRequires:  libicu-devel
 BuildRequires:  libglvnd-devel
 BuildRequires:  libjpeg-turbo-devel
@@ -57,9 +57,9 @@ Requires:       %{name}%{?_isa} = %{version}-%{release}
 Development header files and libraries for skia graphics engine.
 
 %prep
-%setup -c -n %{name}-%{version}
-mkdir -p bin
-cp /usr/bin/gn bin/gn
+%setup -c -n skia-%{version}
+install -d bin
+cp %{_bindir}/gn bin/gn
 %patch -P 0 -p1
 %patch -P 1 -p1
 %patch -P 2 -p1
@@ -80,12 +80,13 @@ sed -i 's|deps += \[ "//third_party/externals/spirv[\-]tools:spvtools_val" \]|de
 # dng_sdk is not packaged
 # wuffs is not packaged
 # ganesh builds successfully with current configuration
-GN_DEFINES_MAIN=" cc=\"${CC}\""
-GN_DEFINES_MAIN+=" cxx=\"${CXX}\""
-# Parsing Fedora build flags is problematic
-#GN_DEFINES_MAIN+=" extra_cflags=[\"${CFLAGS}\"]"
-#GN_DEFINES_MAIN+=" extra_ldflags=[\"${LDFLAGS}\"]"
+GN_DEFINES_MAIN=" cc=\"%{__cc}\""
+GN_DEFINES_MAIN+=" cxx=\"%{__cxx}\""
+# Parsing Fedora build flags is problematic - Skia manages its own optimization
+#GN_DEFINES_MAIN+=" extra_cflags=[\"%{optflags}\"]
 GN_DEFINES_MAIN+=" extra_cflags=[\"-frtti\", \"-DSKCMS_HAS_MUSTTAIL=0\"]"
+# Parsing Fedora linker flags is problematic
+#GN_DEFINES_MAIN+=" extra_ldflags=[\"%{__global_ldflags}\"]"
 GN_DEFINES_MAIN+=" is_official_build=true"
 GN_DEFINES_MAIN+=" is_component_build=true"
 GN_DEFINES_MAIN+=" is_debug=false"
@@ -112,12 +113,12 @@ GN_DEFINES_MAIN+=" skia_use_vulkan=false"
 gn gen out/Build --args="${GN_DEFINES_MAIN}"
 
 # Builds
-ninja -C ./out/Build
+ninja -C ./out/Build %{?_smp_mflags}
 ls out/Build
 
 %install
-mkdir -p %{buildroot}/%{_libdir}
-install -m644 out/Build/*.so* %{buildroot}/%{_libdir}/
+install -d %{buildroot}%{_libdir}
+install -pm644 out/Build/*.so* %{buildroot}%{_libdir}/
 
 # Install public API headers (preserve structure)
 # mkdir -p %%{buildroot}/%%{_includedir}/%%{name}
@@ -131,20 +132,21 @@ install -m644 out/Build/*.so* %{buildroot}/%{_libdir}/
 # Note: out/Build/gen/skia.h is internal and should NOT be installed
 
 # Install via debian's script
-python3 bin/install-headers.py --src include/ --dest %{buildroot}%{_includedir}/%{name} --ignore '.*/android/.*' --ignore '.*/SkRawDecoder\.h' --ignore '.*/SkJpegxlDecoder\.h' --ignore '.*/SkAvifDecocer\.h'
-cp modules/skcms/src/skcms_public.h %{buildroot}%{_includedir}/%{name}/skcms.h
+install -d %{buildroot}%{_includedir}/skia
+python3 bin/install-headers.py --src include/ --dest %{buildroot}%{_includedir}/skia --ignore '.*/android/.*' --ignore '.*/SkRawDecoder\.h' --ignore '.*/SkJpegxlDecoder\.h' --ignore '.*/SkAvifDecocer\.h'
+install -pm644 modules/skcms/src/skcms_public.h %{buildroot}%{_includedir}/skia/skcms.h
 
-mkdir -p %{buildroot}/%{_libdir}/pkgconfig
+install -d %{buildroot}%{_libdir}/pkgconfig
 
-cat <<'EOF' >> %{buildroot}%{_libdir}/pkgconfig/skia.pc
+cat <<'EOF' > %{buildroot}%{_libdir}/pkgconfig/skia.pc
 prefix=%{_prefix}
 exec_prefix=%{_prefix}
 libdir=%{_libdir}
 includedir=%{_includedir}
 
-Name: skia
+Name: %{name}
 Description: 2D graphics library
-Version: 146
+Version: %{version}
 Cflags: -I${includedir}/skia
 Libs: -L${libdir} -lskia
 EOF
@@ -158,10 +160,9 @@ EOF
 %{_libdir}/*.so*
 
 %files devel
-%{_includedir}/%{name}/
-%{_libdir}/pkgconfig/%{name}.pc
+%{_includedir}/skia/
+%{_libdir}/pkgconfig/skia.pc
 
 %changelog
 * Sat Oct 24 2026 Francisco Parra <franparpe@firemail.cc> - 146-1
 - Initial Fedora package
-
